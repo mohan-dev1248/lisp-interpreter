@@ -1,22 +1,34 @@
 import java.io.*
+import java.util.*
 import kotlin.jvm.internal.FunctionReference
 import kotlin.reflect.KFunction
 import kotlin.reflect.jvm.internal.impl.metadata.ProtoBuf
 
 val regex = "^(-?[1-9][0-9]*(([.][0-9]+)?([eE][+-]?[0-9]+)?)?)|^(-?0[.][0-9]+([eE][+-]?[0-9]+)?)|^(0)".toRegex()
 
+//TODO - Need to handle how to access lists in Scheme
+
 val standard_env = mutableMapOf<String, Any>()
 
 fun main(args: Array<String>) {
     initEnvironment()
+    val scanner:Scanner = Scanner(System.`in`)
+    while(true){
+        var code = scanner.nextLine()
+        do {
+            val result = evalExpression(code)
+            println(result?.first)
+            code = if (result != null) result.second else ""
 
-    var text = File("./input.txt").readText()
-    do {
-        val result = evalExpression(text)
-        println(result?.first)
-        text = if (result != null) result.second else ""
-
-    } while (text.length > 0)
+        } while (code.length > 0)
+    }
+//    var text = File("./input.txt").readText()
+//    do {
+//        val result = evalExpression(text)
+//        println(result?.first)
+//        text = if (result != null) result.second else ""
+//
+//    } while (text.length > 0)
 }
 
 fun initEnvironment() {
@@ -44,7 +56,7 @@ fun evalExpression(string: String): Pair<Any, String>? {
     }
 
     if (current.startsWith("if")) {
-        return evalIfExpression(string)
+        return evalIfExpression(current.substring(2))
     }
 
     return evalProc(current)
@@ -78,6 +90,9 @@ fun evalSymbol(string: String): Pair<Any, String>? {
         value = standard_env.get(key)
         if (symbol.size > 1) {
             remString = ") " + symbol[1]
+        }
+        else{
+            remString = ")"
         }
     } else {
         key = symbol[0].trim()
@@ -113,6 +128,7 @@ fun evalProc(string: String): Pair<Any, String>? {
     return null
 }
 
+//TODO - Need to calculate - when it is used as an unary operator
 fun evalArithmetic(string: String, operator: Char): Pair<Any, String>? {
     var strings = string.split(" ", limit = 2)
     if (strings.size > 1) {
@@ -156,6 +172,9 @@ fun evalDefineExpression(string: String): Pair<Unit, String>? {
             value = expParts[1].split(" ","\n",")", limit = 2)[0]
         }
         if (value != null) {
+            if((value as String)==varName){
+                return Pair(Unit, varValue.second.trimStart().substring(1))
+            }
             if (standard_env.get(varName) != null) {
                 standard_env.replace(varName, value)
                 return Pair(Unit, varValue.second.trimStart().substring(1))

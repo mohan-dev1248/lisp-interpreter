@@ -1,2 +1,4 @@
-(define ltus /)
-(ltus 78 789)
+(define plus +)
+(define r 100)
+r
+(plus r 45)
