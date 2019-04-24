@@ -1,5 +1,7 @@
 import java.io.*
+import java.lang.IllegalArgumentException
 import java.util.*
+import java.util.concurrent.locks.Condition
 import kotlin.jvm.internal.FunctionReference
 import kotlin.reflect.KFunction
 import kotlin.reflect.jvm.internal.impl.metadata.ProtoBuf
@@ -31,12 +33,19 @@ fun main(args: Array<String>) {
 //    } while (text.length > 0)
 }
 
+//TODO - The signature of these functions should be numList:List<>, operator:String -> Any ----- So that when calling them it would be easy
+//TODO - So change these functions evalArithmetic and evalTest to those
 fun initEnvironment() {
     standard_env.put("pi", 22.0 / 7.0)
     standard_env.put("+", ::evalArithmetic)
     standard_env.put("-", ::evalArithmetic)
     standard_env.put("*", ::evalArithmetic)
     standard_env.put("/", ::evalArithmetic)
+    standard_env.put(">", ::evalTest)
+    standard_env.put("<", ::evalTest)
+    standard_env.put(">=", ::evalTest)
+    standard_env.put("<=", ::evalTest)
+    standard_env.put("=", ::evalTest)
 }
 
 fun evalExpression(string: String): Pair<Any, String>? {
@@ -112,23 +121,37 @@ fun evalSymbol(string: String): Pair<Any, String>? {
 fun evalProc(string: String): Pair<Any, String>? {
     val expParts = string.trimStart().split(" ", limit = 2)
     var proc = standard_env.get(expParts[0])
-    if (proc != null && proc is KFunction<*>) {
-        return proc.call(string, expParts[0][0]) as Pair<Any, String>?
-    }
+    val ret = callTheProcess(proc,string,expParts[0])
+    if(ret!=null) return ret
     if(proc!=null){
         var key = ""
         while(proc!=null&&proc !is KFunction<*>){
             key = proc as String
             proc = standard_env.get(proc)
         }
-        if(proc!=null){
-            return (proc as KFunction<*>).call(string,key[0]) as Pair<Any, String>?
+        return callTheProcess(proc,string,expParts[0])
+    }
+    return null
+}
+
+fun callTheProcess(proc:Any?, arg: String, operator: String): Pair<Any, String>?{
+    if (proc != null && proc is KFunction<*>) {
+        try{
+            val pair = proc.call(arg, operator[0]) as Pair<Any, String>?
+            if(pair!=null){
+                return pair
+            }
+        }catch (e: IllegalArgumentException){
+
         }
+
+        return proc.call(arg,operator) as Pair<Any, String>
     }
     return null
 }
 
 //TODO - Need to calculate - when it is used as an unary operator
+//TODO - Need to change the following method..so that it will only do arithmetic and not parsing
 fun evalArithmetic(string: String, operator: Char): Pair<Any, String>? {
     var strings = string.split(" ", limit = 2)
     if (strings.size > 1) {
@@ -172,7 +195,7 @@ fun evalDefineExpression(string: String): Pair<Unit, String>? {
             value = expParts[1].split(" ","\n",")", limit = 2)[0]
         }
         if (value != null) {
-            if((value as String)==varName){
+            if(value is String && value==varName){
                 return Pair(Unit, varValue.second.trimStart().substring(1))
             }
             if (standard_env.get(varName) != null) {
@@ -186,8 +209,44 @@ fun evalDefineExpression(string: String): Pair<Unit, String>? {
     return null
 }
 
-fun evalIfExpression(string: String): Pair<Any, String>? {
+fun evalTest(string:String, condition: String) : Pair<Any,String>?{
+    var strings = string.split(" ", limit = 2)
+    if(strings.size>0){
+        val first = evalExpression(strings[1].trimStart())
+        val second = evalExpression(first!!.second.trimStart())
 
-
+        if(first.first is Double && second!!.first is Double && second.second.trimStart().startsWith(")")){
+            val testResult = when(condition){
+                "=" -> first.first as Double == second.first as Double
+                ">" -> first.first as Double > second.first as Double
+                "<" -> (first.first as Double) < second.first as Double
+                "<=" -> first.first as Double <= second.first as Double
+                ">=" -> first.first as Double >= second.first as Double
+                else -> false
+            }
+            return Pair(testResult,second.second.trimStart().substring(1))
+        }
+    }
     return null
+}
+
+//TODO - I shouldn't evaluate both the expressions of the If condition
+fun evalIfExpression(string: String): Pair<Any, String>? {
+    val test = evalExpression(string.trimStart())
+    if(test!=null){
+        val conseq = evalExpression(test!!.second.trimStart())
+        val alt = evalExpression(conseq!!.second.trimStart())
+
+        if((test.first is Double) || (test.first as Boolean) == true){
+            val conseq = evalExpression(test!!.second.trimStart())
+            return Pair(conseq!!.first,alt!!.second.trimStart().substring(1))
+        }
+        return Pair(alt!!.first,alt!!.second.trimStart().substring(1))
+    }
+    return null
+}
+
+fun identifyAndReturnExpression(string: String): String {
+
+    return ""
 }
