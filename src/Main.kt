@@ -73,6 +73,10 @@ fun evalExpression(env: Environment = global_env, string: String): Pair<Any, Str
             return evalLambdaExpression(env, current.substring(6))
         }
 
+        if (current.startsWith("quote")) {
+            return evalQuoteExpression(current.substring(5))
+        }
+
         return evalProc(env, current)
     }
     return null
@@ -100,7 +104,7 @@ fun evalSymbol(env: Environment, string: String): Pair<Any, String>? {
     lateinit var key: String
     if (symbol.size > 1)
         remString = symbol[1]
-    if (symbol[0].contains(")") && symbol[0].length > 1&& !symbol[0].contains("(")) {
+    if (symbol[0].contains(")") && symbol[0].length > 1 && !symbol[0].contains("(")) {
 
         key = symbol[0].trim().substring(0, symbol[0].indexOf(")"))
         value = env.find(key)
@@ -109,8 +113,7 @@ fun evalSymbol(env: Environment, string: String): Pair<Any, String>? {
         } else {
             remString = symbol[0].substring(symbol[0].indexOf(")"))
         }
-    }
-    else if (symbol[0].contains("(") && !symbol[0].startsWith("(")) {
+    } else if (symbol[0].contains("(") && !symbol[0].startsWith("(")) {
 
         key = symbol[0].substring(0, symbol[0].indexOf("("))
         var argumentExpression = identifyAndReturnExpression(string.substring(symbol[0].indexOf("(")))
@@ -128,7 +131,7 @@ fun evalSymbol(env: Environment, string: String): Pair<Any, String>? {
             is String -> Pair(value, remString)
             is Pair<*, *> -> Pair(value, remString)
             is Procedure -> {
-                if(symbol.size>1){
+                if (symbol.size > 1) {
                     var argumentExpression = identifyAndReturnExpression(symbol[1])
                     if (argumentExpression.first.startsWith("(")) {
                         value = Pair(value, argumentExpression.first)
@@ -136,8 +139,7 @@ fun evalSymbol(env: Environment, string: String): Pair<Any, String>? {
                         Pair(value, remString)
                     } else
                         null
-                }
-                else null
+                } else null
             }
             else -> null
         }
@@ -151,11 +153,11 @@ fun evalProc(env: Environment, string: String): Pair<Any, String>? {
         val procedure = (proced.first as Pair<*, *>).first as Procedure
         val argumentExpression = (proced.first as Pair<*, *>).second as String
 
-        if(argumentExpression.length==0) return null
+        if (argumentExpression.length == 0) return null
 
-        val singleExpr = evalExpression(env,argumentExpression)
-        if(singleExpr!=null && singleExpr.first is Double){
-            val procEvaluated = procedure.call(singleExpr.first as Double,outerEnv = env)
+        val singleExpr = evalExpression(env, argumentExpression)
+        if (singleExpr != null && singleExpr.first is Double) {
+            val procEvaluated = procedure.call(singleExpr.first as Double, outerEnv = env)
             if (procEvaluated != null && proced.second.trimStart().startsWith(")"))
                 return Pair(procEvaluated.first, proced.second.trimStart().substring(1))
             return null
@@ -166,7 +168,7 @@ fun evalProc(env: Environment, string: String): Pair<Any, String>? {
 
         var argument = identifyAndReturnExpression(arguments)
         val value = evalExpression(env, argument.first)
-        if(value == null) return null
+        if (value == null) return null
         argumentList.add(value.first as Double)
 
         while ((argument.second) != ")") {
@@ -175,7 +177,7 @@ fun evalProc(env: Environment, string: String): Pair<Any, String>? {
             argumentList.add(value!!.first as Double)
         }
 
-        val procEvaluated = procedure.call(*(argumentList.toList().toDoubleArray()),outerEnv = env)
+        val procEvaluated = procedure.call(*(argumentList.toList().toDoubleArray()), outerEnv = env)
         if (procEvaluated != null && proced.second.trimStart().startsWith(")"))
             return Pair(procEvaluated.first, proced.second.trimStart().substring(1))
         else return null
@@ -302,7 +304,7 @@ fun identifyAndReturnExpression(inp: String): Pair<String, String> {
         expression = "("
         var parsedIndex = 1
         while (listOfBraces.size != 0 && parsedIndex < string.length) {
-            if(string[parsedIndex]=='(' && string[parsedIndex-1]=='(')
+            if (string[parsedIndex] == '(' && string[parsedIndex - 1] == '(')
                 return Pair("", "")
             if (string[parsedIndex] == '(')
                 listOfBraces.add('(')
@@ -340,4 +342,11 @@ fun evalLambdaExpression(env: Environment, string: String): Pair<Any, String>? {
         )
 
     return null
+}
+
+fun evalQuoteExpression(string: String): Pair<String, String>? {
+    var expLiteral = identifyAndReturnExpression(string)
+    if (expLiteral.first == "" || expLiteral.second == "" || !expLiteral.second.trimStart().startsWith(")")) return null
+
+    return Pair(expLiteral.first, expLiteral.second.trimStart().substring(1))
 }
