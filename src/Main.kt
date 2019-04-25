@@ -7,9 +7,10 @@ val regex = "^(-?[1-9][0-9]*(([.][0-9]+)?([eE][+-]?[0-9]+)?)?)|^(-?0[.][0-9]+([e
 
 val global_env: Environment = Environment()
 
-fun main(args: Array<String>) {
+//Since kotlin 1.3 parameters args:Array<String> is not necessary
+fun main() {
     initGlobalEnvironment()
-    val scanner: Scanner = Scanner(System.`in`)
+    val scanner = Scanner(System.`in`)
     while (true) {
         var code = scanner.nextLine()
         do {
@@ -19,9 +20,9 @@ fun main(args: Array<String>) {
             } else {
                 println(result?.first)
             }
-            code = if (result != null) result.second else ""
+            code = result?.second ?: ""
 
-        } while (code.length > 0)
+        } while (code.isNotEmpty()) // code.isNotEmpty() is similar to code.length>0
     }
 //    var text = File("./input.txt").readText()
 //    do {
@@ -34,23 +35,23 @@ fun main(args: Array<String>) {
 
 //TODO - Need to add other global environment variables
 fun initGlobalEnvironment() {
-    val standard_env = mutableMapOf<String, Any>()
-    standard_env.put("pi", 22.0 / 7.0)
-    standard_env.put("+", ::evalArithmetic)
-    standard_env.put("-", ::evalArithmetic)
-    standard_env.put("*", ::evalArithmetic)
-    standard_env.put("/", ::evalArithmetic)
-    standard_env.put(">", ::evalTest)
-    standard_env.put("<", ::evalTest)
-    standard_env.put(">=", ::evalTest)
-    standard_env.put("<=", ::evalTest)
-    standard_env.put("=", ::evalTest)
-    global_env.init(standard_env)
+    val standardEnv = mutableMapOf<String, Any>()
+    standardEnv["pi"] = 22.0 / 7.0
+    standardEnv["+"] = ::evalArithmetic
+    standardEnv["-"] = ::evalArithmetic
+    standardEnv["*"] = ::evalArithmetic
+    standardEnv["/"] = ::evalArithmetic
+    standardEnv[">"] = ::evalTest
+    standardEnv["<"] = ::evalTest
+    standardEnv[">="] = ::evalTest
+    standardEnv["<="] = ::evalTest
+    standardEnv["="] = ::evalTest
+    global_env.init(standardEnv)
 }
 
 fun evalExpression(env: Environment = global_env, string: String): Pair<Any, String>? {
 
-    if (string.length > 0) {
+    if (string.isNotEmpty()) {
         var pair: Pair<Any, String>? = evalNumber(env, string)
         if (pair != null) return pair
 
@@ -98,7 +99,7 @@ fun evalNumber(env: Environment, string: String): Pair<Double, String>? {
 //The trim() function here is called because when reading a file a null character will be attached at the end of the string
 //TODO - Check for the validity of the symbol naming convention
 fun evalSymbol(env: Environment, string: String): Pair<Any, String>? {
-    var symbol = string.trimStart().split(" ", "\n", limit = 2)
+    val symbol = string.trimStart().split(" ", "\n", limit = 2)
     var value: Any?
     var remString = ""
     lateinit var key: String
@@ -108,15 +109,15 @@ fun evalSymbol(env: Environment, string: String): Pair<Any, String>? {
 
         key = symbol[0].trim().substring(0, symbol[0].indexOf(")"))
         value = env.find(key)
-        if (symbol.size > 1) {
-            remString = symbol[0].substring(symbol[0].indexOf(")")) + symbol[1]
+        remString = if (symbol.size > 1) {
+            symbol[0].substring(symbol[0].indexOf(")")) + symbol[1]
         } else {
-            remString = symbol[0].substring(symbol[0].indexOf(")"))
+            symbol[0].substring(symbol[0].indexOf(")"))
         }
     } else if (symbol[0].contains("(") && !symbol[0].startsWith("(")) {
 
         key = symbol[0].substring(0, symbol[0].indexOf("("))
-        var argumentExpression = identifyAndReturnExpression(string.substring(symbol[0].indexOf("(")))
+        val argumentExpression = identifyAndReturnExpression(string.substring(symbol[0].indexOf("(")))
         remString = argumentExpression.second
 
         value = Pair(env.find(key), argumentExpression.first)
@@ -132,7 +133,7 @@ fun evalSymbol(env: Environment, string: String): Pair<Any, String>? {
             is Pair<*, *> -> Pair(value, remString)
             is Procedure -> {
                 if (symbol.size > 1) {
-                    var argumentExpression = identifyAndReturnExpression(symbol[1])
+                    val argumentExpression = identifyAndReturnExpression(symbol[1])
                     if (argumentExpression.first.startsWith("(")) {
                         value = Pair(value, argumentExpression.first)
                         remString = argumentExpression.second
@@ -153,7 +154,7 @@ fun evalProc(env: Environment, string: String): Pair<Any, String>? {
         val procedure = (proced.first as Pair<*, *>).first as Procedure
         val argumentExpression = (proced.first as Pair<*, *>).second as String
 
-        if (argumentExpression.length == 0) return null
+        if (argumentExpression.isEmpty()) return null
 
         val singleExpr = evalExpression(env, argumentExpression)
         if (singleExpr != null && singleExpr.first is Double) {
@@ -164,11 +165,10 @@ fun evalProc(env: Environment, string: String): Pair<Any, String>? {
         }
 
         val argumentList = mutableListOf<Double>()
-        var arguments = argumentExpression.substring(1)
+        val arguments = argumentExpression.substring(1)
 
         var argument = identifyAndReturnExpression(arguments)
-        val value = evalExpression(env, argument.first)
-        if (value == null) return null
+        val value = evalExpression(env, argument.first) ?: return null
         argumentList.add(value.first as Double)
 
         while ((argument.second) != ")") {
@@ -178,9 +178,9 @@ fun evalProc(env: Environment, string: String): Pair<Any, String>? {
         }
 
         val procEvaluated = procedure.call(*(argumentList.toList().toDoubleArray()), outerEnv = env)
-        if (procEvaluated != null && proced.second.trimStart().startsWith(")"))
-            return Pair(procEvaluated.first, proced.second.trimStart().substring(1))
-        else return null
+        return if (procEvaluated != null && proced.second.trimStart().startsWith(")"))
+            Pair(procEvaluated.first, proced.second.trimStart().substring(1))
+        else null
     }
     val expParts = string.trimStart().split(" ", limit = 2)
     var proc = env.find(expParts[0])
@@ -201,7 +201,7 @@ fun evalProc(env: Environment, string: String): Pair<Any, String>? {
 //TODO - Need to calculate - when it is used as an unary operator
 //TODO - Need to change the following method..so that it will only do arithmetic and not parsing
 fun evalArithmetic(env: Environment, string: String, operator: String): Pair<Any, String>? {
-    var strings = string.split(" ", limit = 2)
+    val strings = string.split(" ", limit = 2)
     if (strings.size > 1) {
         var current = strings[1]
 
@@ -255,8 +255,8 @@ fun evalDefineExpression(env: Environment, string: String): Pair<Unit, String>? 
 }
 
 fun evalTest(env: Environment, string: String, condition: String): Pair<Any, String>? {
-    var strings = string.split(" ", limit = 2)
-    if (strings.size > 0) {
+    val strings = string.split(" ", limit = 2)
+    if (strings.isNotEmpty()) {
         val first = evalExpression(env, strings[1].trimStart())
         val second = evalExpression(env, first!!.second.trimStart())
 
@@ -281,12 +281,12 @@ fun evalIfExpression(env: Environment, string: String): Pair<Any, String>? {
         val conseq = identifyAndReturnExpression(test.second)
         val alt = identifyAndReturnExpression(conseq.second)
 
-        if ((test.first is Double) || (test.first as Boolean) == true) {
+        if (test.first is Double || test.first as Boolean) {
             val conseqVal = evalExpression(env, conseq.first)
             return if (conseqVal != null) Pair(conseqVal.first, alt.second.trimStart().substring(1)) else null
         }
 
-        if ((test.first as Boolean) == false) {
+        if (!(test.first as Boolean)) {
             val altValue = evalExpression(env, alt.first)
             return if (altValue != null) Pair(altValue.first, alt.second.trimStart().substring(1)) else null
         }
@@ -300,7 +300,7 @@ fun identifyAndReturnExpression(inp: String): Pair<String, String> {
     val string = inp.trim()
     var expression = string
     if (string.startsWith("(")) {
-        val listOfBraces = mutableListOf<Char>('(')
+        val listOfBraces = mutableListOf('(')
         expression = "("
         var parsedIndex = 1
         while (listOfBraces.size != 0 && parsedIndex < string.length) {
@@ -322,7 +322,7 @@ fun identifyAndReturnExpression(inp: String): Pair<String, String> {
 }
 
 fun evalLambdaExpression(env: Environment, string: String): Pair<Any, String>? {
-    var paramsList = identifyAndReturnExpression(string)
+    val paramsList = identifyAndReturnExpression(string)
     if (!paramsList.first.startsWith("(")) return null
 
     val parameters = mutableListOf<String>()
@@ -333,7 +333,7 @@ fun evalLambdaExpression(env: Environment, string: String): Pair<Any, String>? {
         paramsString = param.second
     }
 
-    var body = identifyAndReturnExpression(paramsList.second)
+    val body = identifyAndReturnExpression(paramsList.second)
 
     if (body.second.trimStart().startsWith(")"))
         return Pair(
@@ -345,7 +345,7 @@ fun evalLambdaExpression(env: Environment, string: String): Pair<Any, String>? {
 }
 
 fun evalQuoteExpression(string: String): Pair<String, String>? {
-    var expLiteral = identifyAndReturnExpression(string)
+    val expLiteral = identifyAndReturnExpression(string)
     if (expLiteral.first == "" || expLiteral.second == "" || !expLiteral.second.trimStart().startsWith(")")) return null
 
     return Pair(expLiteral.first, expLiteral.second.trimStart().substring(1))
