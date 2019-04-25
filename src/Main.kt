@@ -78,6 +78,10 @@ fun evalExpression(env: Environment = global_env, string: String): Pair<Any, Str
             return evalQuoteExpression(current.substring(5))
         }
 
+        if (current.startsWith("begin")) {
+            return evalBeginExpression(env, current.substring(5))
+        }
+
         return evalProc(env, current)
     }
     return null
@@ -349,4 +353,17 @@ fun evalQuoteExpression(string: String): Pair<String, String>? {
     if (expLiteral.first == "" || expLiteral.second == "" || !expLiteral.second.trimStart().startsWith(")")) return null
 
     return Pair(expLiteral.first, expLiteral.second.trimStart().substring(1))
+}
+
+fun evalBeginExpression(env: Environment, string: String): Pair<Any, String>? {
+    var exp = identifyAndReturnExpression(string)
+    var pair: Pair<Any, String>? = null
+    while (exp.first != "" && exp.second != "" && exp.second.trimStart() != ")") {
+        var pair = evalExpression(env, exp.first)
+        exp = identifyAndReturnExpression(exp.second)
+    }
+    pair = evalExpression(env, exp.first)
+    return if (pair != null && exp.second.trimStart().startsWith(")"))
+        Pair(pair.first, exp.second.trimStart().substring(1))
+    else null
 }
