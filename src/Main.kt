@@ -51,57 +51,43 @@ fun initGlobalEnvironment() {
 
 fun evalExpression(env: Environment = global_env, string: String): Pair<Any, String>? {
 
-    if (string.isNotEmpty()) {
-        var pair: Pair<Any, String>? = evalNumber(env, string)
-        if (pair != null) return pair
+    if (string.isEmpty()) return null
+    var pair: Pair<Any, String>? = evalNumber(env, string)
+    if (pair != null) return pair
 
-        pair = evalSymbol(env, string)
-        if (pair != null) return pair
+    pair = evalSymbol(env, string)
+    if (pair != null) return pair
 
-        var current = string.trimStart()
-        if (current[0] != '(') return null
+    var current = string.trimStart()
+    if (current[0] != '(') return null
 
-        current = current.substring(1).trimStart()
-        if (current.startsWith("define")) {
-            return evalDefineExpression(env, current.substring(6))
-        }
+    current = current.substring(1).trimStart()
+    if (current.startsWith("define"))
+        return evalDefineExpression(env, current.substring(6))
+    if (current.startsWith("if"))
+        return evalIfExpression(env, current.substring(2))
+    if (current.startsWith("lambda"))
+        return evalLambdaExpression(env, current.substring(6))
+    if (current.startsWith("quote"))
+        return evalQuoteExpression(current.substring(5))
+    if (current.startsWith("begin"))
+        return evalBeginExpression(env, current.substring(5))
+    return evalProc(env, current)
 
-        if (current.startsWith("if")) {
-            return evalIfExpression(env, current.substring(2))
-        }
-
-        if (current.startsWith("lambda")) {
-            return evalLambdaExpression(env, current.substring(6))
-        }
-
-        if (current.startsWith("quote")) {
-            return evalQuoteExpression(current.substring(5))
-        }
-
-        if (current.startsWith("begin")) {
-            return evalBeginExpression(env, current.substring(5))
-        }
-
-        return evalProc(env, current)
-    }
-    return null
 }
 
 fun evalNumber(env: Environment, string: String): Pair<Double, String>? {
     val num = regex.find(string)?.value
-    if (num != null) {
-        if (string.length > num.length) {
-            if (string[num.length] == ' ' || string[num.length] == ')')
-                return Pair(num.toDouble(), string.subSequence(num.length, string.length).toString())
-            return null
-        }
-        return Pair(num.toDouble(), string.subSequence(num.length, string.length).toString())
+    if (num == null) return null
+    if (string.length > num.length) {
+        if (string[num.length] == ' ' || string[num.length] == ')')
+            return Pair(num.toDouble(), string.subSequence(num.length, string.length).toString())
+        return null
     }
-    return null
+    return Pair(num.toDouble(), string.subSequence(num.length, string.length).toString())
 }
 
 //The trim() function here is called because when reading a file a null character will be attached at the end of the string
-//TODO - Check for the validity of the symbol naming convention
 fun evalSymbol(env: Environment, string: String): Pair<Any, String>? {
     val symbol = string.trimStart().split(" ", "\n", limit = 2)
     var value: Any?
@@ -129,27 +115,25 @@ fun evalSymbol(env: Environment, string: String): Pair<Any, String>? {
         key = symbol[0].trim()
         value = env.find(key)
     }
-    if (value != null) {
-        return when (value) {
-            is Double -> Pair(value, remString)
-            is KFunction<*> -> Pair("<Function $key>", remString)
-            is String -> Pair(value, remString)
-            is Pair<*, *> -> Pair(value, remString)
-            is Procedure -> {
-                if (symbol.size > 1) {
-                    val argumentExpression = identifyAndReturnExpression(symbol[1])
-                    if (argumentExpression.first.startsWith("(")) {
-                        value = Pair(value, argumentExpression.first)
-                        remString = argumentExpression.second
-                        Pair(value, remString)
-                    } else
-                        null
-                } else null
-            }
-            else -> null
+    if (value == null) return null
+    return when (value) {
+        is Double -> Pair(value, remString)
+        is KFunction<*> -> Pair("<Function $key>", remString)
+        is String -> Pair(value, remString)
+        is Pair<*, *> -> Pair(value, remString)
+        is Procedure -> {
+            if (symbol.size > 1) {
+                val argumentExpression = identifyAndReturnExpression(symbol[1])
+                if (argumentExpression.first.startsWith("(")) {
+                    value = Pair(value, argumentExpression.first)
+                    remString = argumentExpression.second
+                    Pair(value, remString)
+                } else
+                    null
+            } else null
         }
+        else -> null
     }
-    return null
 }
 
 fun evalProc(env: Environment, string: String): Pair<Any, String>? {
@@ -239,6 +223,7 @@ fun evalArithmetic(env: Environment, string: String, operator: String): Pair<Any
 fun evalDefineExpression(env: Environment, string: String): Pair<Unit, String>? {
     val expParts = string.trimStart().split(" ", limit = 2)
     val varName = expParts[0]
+    if (!validSymbolName(varName)) return null
     val varValue = evalExpression(env, expParts[1])
     if (varValue != null && varValue.second.trimStart().startsWith(")")) {
         var value = varValue.first
@@ -256,6 +241,11 @@ fun evalDefineExpression(env: Environment, string: String): Pair<Unit, String>? 
         return Pair(Unit, varValue.second.trimStart().substring(1))
     }
     return null
+}
+
+fun validSymbolName(sname: String): Boolean {
+    val regex = "^[a-zA-Z_][a-zA-Z0-9_]+".toRegex()
+    return regex.matches(sname)
 }
 
 fun evalTest(env: Environment, string: String, condition: String): Pair<Any, String>? {
