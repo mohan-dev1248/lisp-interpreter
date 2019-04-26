@@ -20,8 +20,7 @@ fun main() {
             } else {
                 println(result?.first)
             }
-            code = result?.second ?: ""
-
+            code = (result?.second ?: "").trimStart()
         } while (code.isNotEmpty()) // code.isNotEmpty() is similar to code.length>0
     }
 //    var text = File("./input.txt").readText()
@@ -41,6 +40,10 @@ fun initGlobalEnvironment() {
     standardEnv["-"] = ::evalArithmetic
     standardEnv["*"] = ::evalArithmetic
     standardEnv["/"] = ::evalArithmetic
+    standardEnv["sin"] = ::evalArithmetic
+    standardEnv["cos"] = ::evalArithmetic
+    standardEnv["sqrt"] = ::evalArithmetic
+    standardEnv["pow"] = ::evalArithmetic
     standardEnv[">"] = ::evalTest
     standardEnv["<"] = ::evalTest
     standardEnv[">="] = ::evalTest
@@ -186,8 +189,6 @@ fun evalProc(env: Environment, string: String): Pair<Any, String>? {
     return null
 }
 
-//TODO - Need to calculate - when it is used as an unary operator
-//TODO - Need to change the following method..so that it will only do arithmetic and not parsing
 fun evalArithmetic(env: Environment, string: String, operator: String): Pair<Any, String>? {
     val strings = string.split(" ", limit = 2)
     if (strings.size > 1) {
@@ -197,6 +198,42 @@ fun evalArithmetic(env: Environment, string: String, operator: String): Pair<Any
         if (exprPair == null || exprPair.first !is Double) return null
         var expValue = exprPair.first as Double
         current = exprPair.second.trimStart()
+
+        when(operator){
+            "sin" -> {
+                if(!current.startsWith(')'))
+                    return null
+                else
+                    return Pair(Math.sin(expValue), current.substring(1))
+            }
+            "cos" -> {
+                if(!current.startsWith(')'))
+                    return null
+                else
+                    return Pair(Math.cos(expValue), current.substring(1))
+            }
+            "sqrt" -> {
+                if(!current.startsWith(')'))
+                    return null
+                else
+                    return Pair(Math.sqrt(expValue), current.substring(1))
+            }
+            "pow" -> {
+                if(current.startsWith(')'))
+                    return null
+                else{
+                    val operand = evalExpression(env, current)
+                    if (operand == null || operand.first !is Double) return null
+                    current = operand.second.trimStart()
+                    if(!current.startsWith(")")) return null
+                    return Pair(Math.pow(expValue,operand.first as Double), current.substring(1))
+                }
+            }
+            "-" -> {
+                if(current.startsWith(')'))
+                    return Pair(-(expValue), current.substring(1))
+            }
+        }
 
         while (!current.startsWith(')')) {
             val operand = evalExpression(env, current)
