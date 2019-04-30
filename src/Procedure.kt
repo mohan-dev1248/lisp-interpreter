@@ -1,12 +1,10 @@
 class Procedure(vararg val paramList: String, val body: String) {
 
-    fun call(vararg args: Double, outerEnv: Environment): Pair<Any, String>? {
-        if (paramList.size == args.size) {
+    fun call(vararg args: Any, outerEnv: Environment): Pair<Any, String>? {
+        return if (paramList.size == args.size) {
             val env = Environment(outerEnv)
             env.init(paramList.toList(), args.toList())
-            return evalExpression(env,body)
-        } else {
-            throw error("Illegal arguments for the Function")
-        }
+            evalExpression(env,body)
+        } else null
     }
 }

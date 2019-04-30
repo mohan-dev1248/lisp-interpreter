@@ -2,8 +2,7 @@ import java.util.*
 import kotlin.reflect.KFunction
 
 val regex = "^(-?[1-9][0-9]*(([.][0-9]+)?([eE][+-]?[0-9]+)?)?)|^(-?0[.][0-9]+([eE][+-]?[0-9]+)?)|^(0)".toRegex()
-
-//TODO - Need to handle how to access lists in Scheme
+val symbol = "^[a-zA-Z_][a-zA-Z0-9_]+".toRegex()
 
 val global_env: Environment = Environment()
 
@@ -15,11 +14,7 @@ fun main() {
         var code = scanner.nextLine()
         do {
             val result = evalExpression(string = code)
-            if (result != null && result.first is Pair<*, *>) {
-                println((result.first as Pair<Procedure, String>).first)
-            } else {
-                println(result?.first)
-            }
+            println(result?.first)
             code = (result?.second ?: "").trimStart()
         } while (code.isNotEmpty()) // code.isNotEmpty() is similar to code.length>0
     }
@@ -107,13 +102,6 @@ fun evalSymbol(env: Environment, string: String): Pair<Any, String>? {
         } else {
             symbol[0].substring(symbol[0].indexOf(")"))
         }
-    } else if (symbol[0].contains("(") && !symbol[0].startsWith("(")) {
-
-        key = symbol[0].substring(0, symbol[0].indexOf("("))
-        val argumentExpression = identifyAndReturnExpression(string.substring(symbol[0].indexOf("(")))
-        remString = argumentExpression.second
-
-        value = Pair(env.find(key), argumentExpression.first)
     } else {
         key = symbol[0].trim()
         value = env.find(key)
@@ -123,55 +111,32 @@ fun evalSymbol(env: Environment, string: String): Pair<Any, String>? {
         is Double -> Pair(value, remString)
         is KFunction<*> -> Pair("<Function $key>", remString)
         is String -> Pair(value, remString)
-        is Pair<*, *> -> Pair(value, remString)
-        is Procedure -> {
-            if (symbol.size > 1) {
-                val argumentExpression = identifyAndReturnExpression(symbol[1])
-                if (argumentExpression.first.startsWith("(")) {
-                    value = Pair(value, argumentExpression.first)
-                    remString = argumentExpression.second
-                    Pair(value, remString)
-                } else
-                    null
-            } else null
-        }
+        is Procedure -> Pair(value, remString)
         else -> null
     }
 }
 
 fun evalProc(env: Environment, string: String): Pair<Any, String>? {
-    val proced = evalSymbol(env, string)
-    if (proced != null && proced.first is Pair<*, *>) {
-        val procedure = (proced.first as Pair<*, *>).first as Procedure
-        val argumentExpression = (proced.first as Pair<*, *>).second as String
+    val proced = evalExpression(env, string)
+    if (proced != null && proced.first is Procedure) {
+        val procedure = proced.first as Procedure
+        var argumentExpression = proced.second
 
         if (argumentExpression.isEmpty()) return null
 
-        val singleExpr = evalExpression(env, argumentExpression)
-        if (singleExpr != null && singleExpr.first is Double) {
-            val procEvaluated = procedure.call(singleExpr.first as Double, outerEnv = env)
-            if (procEvaluated != null && proced.second.trimStart().startsWith(")"))
-                return Pair(procEvaluated.first, proced.second.trimStart().substring(1))
-            return null
-        }
+        val argumentList = mutableListOf<Any>()
+        do {
+            var argument = evalExpression(env, argumentExpression);
+            if (argument != null) {
+                argumentList.add(argument.first)
+            } else return null
+            argumentExpression = argument.second.trimStart()
+        } while (!argumentExpression.startsWith(")"))
 
-        val argumentList = mutableListOf<Double>()
-        val arguments = argumentExpression.substring(1)
-
-        var argument = identifyAndReturnExpression(arguments)
-        val value = evalExpression(env, argument.first) ?: return null
-        argumentList.add(value.first as Double)
-
-        while ((argument.second) != ")") {
-            argument = identifyAndReturnExpression(argument.second)
-            val value = evalExpression(env, argument.first)
-            argumentList.add(value!!.first as Double)
-        }
-
-        val procEvaluated = procedure.call(*(argumentList.toList().toDoubleArray()), outerEnv = env)
-        return if (procEvaluated != null && proced.second.trimStart().startsWith(")"))
-            Pair(procEvaluated.first, proced.second.trimStart().substring(1))
-        else null
+        val procEvaluated = procedure.call(*(argumentList.toTypedArray()), outerEnv = env)
+        if (procEvaluated != null)
+            return Pair(procEvaluated.first, argumentExpression.substring(1))
+        return null
     }
     val expParts = string.trimStart().split(" ", limit = 2)
     var proc = env.find(expParts[0])
@@ -199,38 +164,38 @@ fun evalArithmetic(env: Environment, string: String, operator: String): Pair<Any
         var expValue = exprPair.first as Double
         current = exprPair.second.trimStart()
 
-        when(operator){
+        when (operator) {
             "sin" -> {
-                if(!current.startsWith(')'))
-                    return null
+                return if (!current.startsWith(')'))
+                    null
                 else
-                    return Pair(Math.sin(expValue), current.substring(1))
+                    Pair(Math.sin(expValue), current.substring(1))
             }
             "cos" -> {
-                if(!current.startsWith(')'))
-                    return null
+                return if (!current.startsWith(')'))
+                    null
                 else
-                    return Pair(Math.cos(expValue), current.substring(1))
+                    Pair(Math.cos(expValue), current.substring(1))
             }
             "sqrt" -> {
-                if(!current.startsWith(')'))
-                    return null
+                return if (!current.startsWith(')'))
+                    null
                 else
-                    return Pair(Math.sqrt(expValue), current.substring(1))
+                    Pair(Math.sqrt(expValue), current.substring(1))
             }
             "pow" -> {
-                if(current.startsWith(')'))
+                if (current.startsWith(')'))
                     return null
-                else{
+                else {
                     val operand = evalExpression(env, current)
                     if (operand == null || operand.first !is Double) return null
                     current = operand.second.trimStart()
-                    if(!current.startsWith(")")) return null
-                    return Pair(Math.pow(expValue,operand.first as Double), current.substring(1))
+                    if (!current.startsWith(")")) return null
+                    return Pair(Math.pow(expValue, operand.first as Double), current.substring(1))
                 }
             }
             "-" -> {
-                if(current.startsWith(')'))
+                if (current.startsWith(')'))
                     return Pair(-(expValue), current.substring(1))
             }
         }
@@ -280,10 +245,7 @@ fun evalDefineExpression(env: Environment, string: String): Pair<Unit, String>? 
     return null
 }
 
-fun validSymbolName(sname: String): Boolean {
-    val regex = "^[a-zA-Z_][a-zA-Z0-9_]+".toRegex()
-    return regex.matches(sname)
-}
+fun validSymbolName(sname: String) = symbol.matches(sname)
 
 fun evalTest(env: Environment, string: String, condition: String): Pair<Any, String>? {
     val strings = string.split(" ", limit = 2)
